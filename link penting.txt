@@ -1,0 +1,6 @@
+arduino lcd 5110 menu
+http://educ8s.tv/arduino-nokia-5110-menu/
+arduino token sha
+https://github.com/DrGonzo/ARDUINO-OATH-TOKEN/blob/master/arduino_oath_token/arduino_oath_token.ino
+lcd 5110 rtc
+https://arduino-projects-free.blogspot.com/2017/05/lcd-5110-rtc-dht11-sensor-project.html
