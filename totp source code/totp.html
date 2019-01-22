@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<title>Time-based One-time Password generator.</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<script type="text/javascript" src="otplib-browser.js"></script>
+<script type="text/javascript" src="qrcode.min.js"></script>
+
+<style type="text/css">
+a:link {text-decoration: none; color: blue;}
+body {font-size: 1em; font-family: arial, helvetica; background-color: #fffada;}
+button {background-color: #008cba; border: 1px solid black; color: white; padding: 5px 15px; text-align: center; text-decoration: none; display: inline-block; border-radius: 4px; font-size: 16px;}
+input {padding: 5px 5px; margin: 5px 0; box-sizing: border-box; border: 1px solid black; border-radius: 4px; background-color: white; font-family: monospace; font-size: 1.1em;}
+input[disabled="disabled"] { background-color: #d3d3d3; }
+#disclaimer{background-color: #fda429; border: 1px solid black; color: black; padding: 5px 15px; margin: 0; font-family: monospace;}
+#warning{background-color: #000000; color: white; padding: 0; margin: 5px 0px; font-family: monospace; font-size: 1.2em;}
+#token{font-size:50pt;height:90px;width:300px;text-align:center;font-weight: bold;color:#0000ff;}
+</style>
+
+</head>
+<body>
+<h2>Time-based One-time Password generator</h2>
+
+username: <a href="javascript:clearField('username');">Clear</a><br />
+<input type='text' id='username' value='' size='40' maxlength='40'/>
+<br /><br />
+
+password: <a href="javascript:clearField('password');">Clear</a><br />
+<input type='text' id='password' value='' size='40' maxlength='40'/>
+<br /><br />
+
+secret key: <br />
+<input type='text' id='secret' value='' size='40' maxlength='40'/>
+<br /><br />
+
+QR Code:<br />
+<div id='qrcode'></div>
+<br />
+
+Kode TOTP:<br />
+<input type='text' id='token' value='' size='40' maxlength='40'/>
+<br /><br />
+
+Refresh : <span id='countdown'></span>
+<br /><br />
+
+<button onclick="javascript:clearFields();createSecret(true);">Random secret key</button> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<button onclick="javascript:clearFields2();createSecret(false);">Input secret key</button> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<button onclick="javascript:clearFields();clearField('username');clearField('password')">Stop &amp; Clear All</button> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<button onclick="javascript:clearFields();demo();">Random</button>
+<br /><br />
+
+<hr />
+<h2>Validasi TOTP</h2>
+
+Masukan Kode: <a href="javascript:clearField('inputToken');">Hapus</a><br />
+<input type='text' id='inputToken' value='' size='40' maxlength='40'/>
+<br /><br />
+<button onclick="javascript:validate();">Cek</button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<button onclick="javascript:clearStatus();">Hapus</button>
+<br /><br />
+<div id='status'></div>
+<hr />
+<!-- ======================================================================= -->
+<script type="text/javascript">
+"use strict";
+
+let secret = '';
+let timing;
+
+otplib.authenticator.options = {
+	window: 1,
+	step: 30
+};
+
+function clearStatus() {
+	document.getElementById('status').innerHTML = "";
+}
+
+function clearField(id) {
+	document.getElementById(id).value = "";
+}
+
+function clearFields(){
+	clearField('secret');
+	clearFields2();
+}
+
+function clearFields2(){
+	clearField('token');
+	document.getElementById('countdown').innerHTML = "";
+	document.getElementById('qrcode').innerHTML = "";
+	window.clearInterval(timing);
+}
+
+function startCountdown() {
+	window.setTimeout(() => {
+		if (secret) {
+			setToken(otplib.authenticator.generate(secret));
+		}
+		timing = window.setInterval(generator, 1000);
+	}, 2000);
+}
+
+function setToken(token) {
+	document.getElementById('token').value = token;
+}
+
+function generator() {
+	if (!secret) {
+		window.clearInterval(timing);
+		return;
+	}
+
+	const remaining = otplib.authenticator.timeRemaining();
+	if (otplib.authenticator.timeUsed() === 0) {
+		setToken(otplib.authenticator.generate(secret));
+	}
+
+	// time left
+	document.getElementById('countdown').innerHTML = remaining + ' sec';
+}
+
+function createSecret(generate) {
+	if (generate) {
+		secret = otplib.authenticator.generateSecret();
+	} else {
+		secret = document.getElementById('secret').value;
+
+		// Remove all spaces and convert to upper case
+		secret = secret.replace(/\s/g, '');
+		secret = secret.toUpperCase();
+
+		if(secret == "") {
+			alert("Harap Masukan Secret Key");
+			return;
+		}
+	}
+
+	startCountdown();
+
+	let password = document.getElementById('password').value;
+	password = password.trim();
+
+	let username = document.getElementById('username').value;
+	username =  username .trim();
+
+	const otpauth = otplib.authenticator.keyuri(username, password, secret);
+
+	document.getElementById('secret').value = secret;
+
+	QRCode.toDataURL(otpauth, function(err, url) {
+		let container = document.getElementById('qrcode');
+		if (err) {
+			container.innerHTML = 'Gagal Membuat QR Code';
+			return;
+		}
+
+		container.innerHTML = '<img src="' + url + '" alt="" /><br />';
+		container.innerHTML += otpauth;
+	});
+}
+
+function validate(){
+	let inputToken = document.getElementById('inputToken').value;
+	inputToken = inputToken.trim();
+
+	if(inputToken == "") {
+		alert("Harap Masukan Kode");
+		return;
+	}
+
+	let inputSecret = document.getElementById('secret').value;
+	inputSecret = inputSecret.trim();
+
+	if(inputSecret == "") {
+		alert("Harap Masukan Secret Key");
+		return;
+	}
+
+	const delta = otplib.authenticator.checkDelta(inputToken, inputSecret);
+
+	let statusText = "";
+	if (Number.isInteger(delta)) {
+		statusText = "Kode TOTP valid";
+	} else {
+		statusText = "Kode TOTP invalid";
+	}
+	document.getElementById('status').innerHTML = statusText;
+}
+
+function demo() {
+	document.getElementById('password').value = 'P4ssword';
+	document.getElementById('username').value = 'username';
+	createSecret(true)
+}
+
+</script>
+
+</body>
+
+</html>
